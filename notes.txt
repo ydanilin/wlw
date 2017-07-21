@@ -1,0 +1,13 @@
+To start new project:
+1. activate tomik
+2. in the folder with ALL projects: scrapy startproject <proj folder name>
+
+To inspect page without scraper:
+scrapy shell "<url>"  # double quotes in Windows!
+
+To run:
+scrapy crawl <scraper name (in class attrib)>
+
+
+To kill in ConEmu
+Ctrl + Alt + Break = kill active process
