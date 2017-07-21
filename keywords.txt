@@ -1,0 +1,6 @@
+
+- Druckereien
+- Werbetechnik
+- Werbeartikel
+- Werbeagenturen
+def scrape_wlw (“[country e.g. “de”]”,“[keyword e.g. “druckereien”]”)
