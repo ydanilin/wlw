@@ -1,3 +1,5 @@
+conda create --name <name> python=3.5
+
 To start new project:
 1. activate tomik
 2. in the folder with ALL projects: scrapy startproject <proj folder name>
@@ -11,3 +13,11 @@ scrapy crawl <scraper name (in class attrib)>
 
 To kill in ConEmu
 Ctrl + Alt + Break = kill active process
+
+crawler.spider.start_urls
+
+Nächste
+$x('//ul[@class="pagination"]/li[not(@class)]/a[text()[contains(.,"chste")]]')
+
+in settings.py:
+CONCURRENT_REQUESTS = 1

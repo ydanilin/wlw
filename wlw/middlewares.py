@@ -1,38 +1,89 @@
 # -*- coding: utf-8 -*-
-
-# Define here the models for your spider middleware
-#
-# See documentation in:
-# http://doc.scrapy.org/en/latest/topics/spider-middleware.html
-
+import logging
+import re
 from scrapy import signals
+from scrapy.http import Request
 
+
+logger = logging.getLogger(__name__)
 
 class WlwSpiderMiddleware(object):
-    # Not all methods need to be defined. If a method is not defined,
-    # scrapy acts as if the spider middleware does not modify the
-    # passed objects.
+    def __init__(self, stats):
+        self.stats = stats
 
     @classmethod
     def from_crawler(cls, crawler):
         # This method is used by Scrapy to create your spiders.
-        s = cls()
+        s = cls(crawler.stats)
         crawler.signals.connect(s.spider_opened, signal=signals.spider_opened)
         return s
 
     def process_spider_input(self, response, spider):
-        # Called for each response that goes through the spider
-        # middleware and into the spider.
-
-        # Should return None or raise an exception.
+        if response.meta.get('rule', 77) == 2:
+            logger.info('******************   Next page loaded')
+        if response.meta.get('rule', 77) == 1:
+            # means one firm already processed:
+            x = self.stats.get_value('all_firms') - 1  # tuda
+            self.stats.set_value('all_firms', x)  # tuda
+            term = response.meta['process_data']['classified_term']
+            total = response.meta['process_data']['firms_total']
+            t = self.stats.get_value(term)
+            if not t:  # if synonym is not in the stats
+                # create entry and set downloaded to 1
+                self.stats.set_value(term, dict(downl=1,
+                                                total=int(total)))
+            else:
+                t['downl'] += 1
+                # signal when all firms for sysnonym are fetched
+                if t['downl'] == response.meta['process_data']['firms_total']:
+                    msg = ('For category %(c)s'
+                           ' all firms fetched (%(a)d).'
+                           ' %(x)d firms remain to process so far')
+                    log_args = {'c': response.meta['process_data']['classified_term'],
+                                'a': response.meta['process_data']['firms_total'],
+                                'x': self.stats.get_value('all_firms')}
+                    logger.info(msg, log_args)
         return None
 
     def process_spider_output(self, response, result, spider):
-        # Called with the results returned from the Spider, after
-        # it has processed the response.
-
-        # Must return an iterable of Request, dict or Item objects.
+        allFirms = self.stats.get_value('all_firms')
+        if not allFirms:  # that means we just started the process
+            self.stats.set_value('all_firms', 0)
+            allFirms = 0
         for i in result:
+            if isinstance(i, Request):
+                i.meta['process_data'] = response.meta['process_data'].copy()
+                ruleNo = response.meta.get('rule', 77)
+                # if response came from request triggered by
+                # either rule 0: from synonyms page to firms listing first page
+                # or rule 2: to next listing page
+                if ruleNo in [0, 2]:
+                    # synonym term and amount of firms
+                    txt = re.split(r'(\d+) Anbieter',
+                                   response.meta.get('link_text', ''))
+                    if len(txt) == 3:
+                        i.meta['process_data']['classified_term'] = txt[0]
+                        i.meta['process_data']['firms_total'] = int(txt[1])
+                        # one response synonyms page creates multiple requests
+                        # to firms. so firms accumulator for same response
+                        # should be here
+                        # if we're first time on this response
+                        if response.meta['process_data']['firms_pulled'] == 0:
+                            # add firms from this synonym to total
+                            allFirms += int(txt[1])
+                            self.stats.set_value('all_firms', allFirms)
+                    # ... and request triggered by Rule 1 (to fetch firm page)
+                    if i.meta.get('rule', 77) == 1:
+
+                        # add to firms accumulator
+                        count = response.meta['process_data']['firms_pulled']
+                        count += 1
+                        response.meta['process_data']['firms_pulled'] = count
+                        # ... and copy this to request
+                        i.meta['process_data']['firms_pulled'] = count
+
+
+
             yield i
 
     def process_spider_exception(self, response, exception, spider):
