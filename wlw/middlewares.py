@@ -25,7 +25,8 @@ class WlwSpiderMiddleware(object):
             # means one firm already processed:
             x = self.stats.get_value('all_firms') - 1  # tuda
             self.stats.set_value('all_firms', x)  # tuda
-            term = response.meta['process_data']['classified_term']
+            term = response.meta['process_data']['initial_term'] + '/' +\
+                   response.meta['process_data']['classified_term']
             total = response.meta['process_data']['firms_total']
             t = self.stats.get_value(term)
             if not t:  # if synonym is not in the stats
@@ -70,8 +71,12 @@ class WlwSpiderMiddleware(object):
                         # if we're first time on this response
                         if response.meta['process_data']['firms_pulled'] == 0:
                             # add firms from this synonym to total
+                            was = allFirms
                             allFirms += int(txt[1])
                             self.stats.set_value('all_firms', allFirms)
+                            msg = ('Added to queue: was %(w)d, added %(a)d')
+                            args = {'w': was, 'a': int(txt[1])}
+                            logger.info(msg, args)
                     # ... and request triggered by Rule 1 (to fetch firm page)
                     if i.meta.get('rule', 77) == 1:
 
@@ -81,9 +86,6 @@ class WlwSpiderMiddleware(object):
                         response.meta['process_data']['firms_pulled'] = count
                         # ... and copy this to request
                         i.meta['process_data']['firms_pulled'] = count
-
-
-
             yield i
 
     def process_spider_exception(self, response, exception, spider):

@@ -21,3 +21,15 @@ $x('//ul[@class="pagination"]/li[not(@class)]/a[text()[contains(.,"chste")]]')
 
 in settings.py:
 CONCURRENT_REQUESTS = 1
+
+crawl
+wlw_base
+-s
+CLOSESPIDER_PAGECOUNT=500
+-s
+LOG_LEVEL=INFO
+-s
+HTTPCACHE_ENABLED=1
+-s
+LOGSTATS_INTERVAL=10
+

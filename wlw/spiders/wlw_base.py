@@ -16,7 +16,8 @@ class WlwBaseSpider(CrawlSpider):
         t2 = value.find('golddruck')
         t3 = value.find('kranzschleifendruck')
         t4 = value.find('lithographie-steindruck')
-        if t1 >= 0 or t2 >= 0 or t3 >= 0 or t4 >= 0:
+        t5 = value.find('tiefdruck')
+        if t1 >= 0 or t2 >= 0 or t3 >= 0 or t4 >= 0 or t5 >= 0:
             return value
         else:
             return None
@@ -28,7 +29,7 @@ class WlwBaseSpider(CrawlSpider):
         Rule(LinkExtractor(
             restrict_xpaths='//a[@data-track-type="click_serp_company_name"]'),
             callback='parse_group'),
-
+        # 2. from a firm list page to the next one
         Rule(LinkExtractor(restrict_xpaths=('//ul[@class="pagination"]/'
                                             'li[not(@class)]/'
                                             'a[text()[contains(.,"chste")]]')))
