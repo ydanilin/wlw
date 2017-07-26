@@ -4,6 +4,8 @@ import re
 from scrapy.spiders import CrawlSpider, Rule
 from scrapy.linkextractors import LinkExtractor
 from scrapy.shell import inspect_response
+from scrapy.selector import Selector
+from ..items import WlwItem
 
 logger = logging.getLogger(__name__)
 
@@ -50,18 +52,21 @@ class WlwBaseSpider(CrawlSpider):
     def parse_group(self, response):
         firmaId = response.xpath(
             '(.//*[@data-company-id]/@data-company-id)[1]').extract_first().strip()
+        container = WlwItem(query=response.meta['process_data']['initial_term'],
+                            category=response.meta['process_data']['classified_term'],
+                            total_firms=response.meta['process_data']['firms_total'],
+                            firmaId=firmaId)
 
         vcardDiv = response.css('div.profile-vcard')
         if vcardDiv:
             nameAddrDiv = vcardDiv.css('div.vcard-details')
             if nameAddrDiv:
-                t = self.parseNameAddress(nameAddrDiv, firmaId)
+                self.parseNameAddress(nameAddrDiv, container)
                 # HFS Verpackungen GmbH
             else:
                 logger.error('no name/address data for {0}'.format(firmaId))
-            # go for phone, email, site
-            t1 = self.parsePhoneEmail(vcardDiv)
-            print(t1['email'], t1['site'], firmaId)
+            t1 = self.parsePhoneEmail(vcardDiv, firmaId)
+            print(container)
         else:
             logger.error('no visitcard section for {0}'.format(firmaId))
 
@@ -69,43 +74,47 @@ class WlwBaseSpider(CrawlSpider):
         if angebotDiv:
             angebots = angebotDiv.xpath('.//article')
             for angebot in angebots:
-                pass
-                # print('Angebot explore')
+                statuses = angebot.xpath('.//*[@title]')
+                angeName = statuses[0].xpath('.//ancestor::div[2]//text()').extract_first().strip()
+                t2 = self.parseStatus(statuses, firmaId)
+                details = angebot.xpath('./child::div')
+                t3 = self.parseAngebotDetails(details, firmaId)
+                # print(angeName, t3)
         else:
             logger.error('no angebot section for {0}'.format(firmaId))
         # inspect_response(response, self)
 
-    def parseNameAddress(self, nameAddrDiv, firmaId):
-        output = {}
+    def parseNameAddress(self, nameAddrDiv, container):
+        firmaId = container['firmaId']
         nameAddrLst = nameAddrDiv.xpath('.//text()').extract()
         if len(nameAddrLst) == 2:
-            output['name'] = nameAddrLst[0].strip()
+            container['name'] = nameAddrLst[0].strip()
             addrFull = nameAddrLst[1].strip()
-            output['addrFull'] = addrFull
+            container['full_addr'] = addrFull
             addrSplitted = re.split(r',\s+', addrFull)
             if len(addrSplitted) == 2:
                 stHaus, indStadt = addrSplitted
                 indSplitted = re.split(r'(DE-\d+)\s?', indStadt)
                 if len(indSplitted) == 3:
                     dummy, index, stadt = indSplitted
-                    output['zip'] = index
-                    output['city'] = stadt
+                    container['zip'] = index
+                    container['city'] = stadt
                 else:
                     logger.error('when re.split index, city for {0}'.format(firmaId))
                 streetSplitted = re.split(r'\s+(\d+)', stHaus)
                 if len(streetSplitted) == 3:
                     street, house, dummy = streetSplitted
-                    output['street'] = street
-                    output['building'] = house
+                    container['street'] = street
+                    container['building'] = house
                 else:
-                    logger.error('when re.split street, No for {0}'.format(firmaId))
+                    logger.error('when re.split street, for {0}'.format(firmaId))
             else:
                 logger.error('when re.split full address for {0}'.format(firmaId))
         else:
             logger.error('parsing nameAddrDiv for {0}'.format(firmaId))
-        return output
+        return
 
-    def parsePhoneEmail(self, vcardDiv):
+    def parsePhoneEmail(self, vcardDiv, firmaId):
         phone = ''
         email = ''
         site = ''
@@ -113,9 +122,60 @@ class WlwBaseSpider(CrawlSpider):
         for svg in svgs:
             t = svg.extract()
             if t.find('"#svg-icon-earphone"') >= 0:
-                aTag = svg.xpath('./ancestor::a[1]')
+                aTagTxt = svg.xpath('./ancestor::a[1]/@data-content').extract_first()
+                sel = Selector(text=aTagTxt).xpath('.//text()')
+                if len(sel) == 2:
+                    phone = sel[1].extract().strip()
+                else:
+                    logger.error('no phone found for {0}'.format(firmaId))
             elif t.find('"#svg-icon-email"') >= 0:
                 email = svg.xpath('./ancestor::a[1]//text()').extract_first().strip()[::-1]
             elif t.find('"#svg-icon-website"') >= 0:
                 site = svg.xpath('./ancestor::a[1]/@href').extract_first().strip()
         return dict(phone=phone, email=email, site=site)
+
+    def parseStatus(self, statuses, firmaId):
+        out = dict(producer='No', service='No', distrib='No', wholesaler='No')
+        if len(statuses) == 4:
+            for status in statuses:
+
+                if status.xpath('./@title').extract_first().strip() == 'Hersteller':
+                    t = status.xpath('./@class').extract_first().strip()
+                    if t.find('disabled') < 0:
+                        out['producer'] = 'Yes'
+                elif status.xpath('./@title').extract_first().strip() == 'Dienstleister':
+                    t = status.xpath('./@class').extract_first().strip()
+                    if t.find('disabled') < 0:
+                        out['service'] = 'Yes'
+                elif status.xpath('./@title').extract_first().strip() == 'Händler':
+                    t = status.xpath('./@class').extract_first().strip()
+                    if t.find('disabled') < 0:
+                        out['distrib'] = 'Yes'
+                elif status.xpath('./@title').extract_first().strip() == 'Großhändler':
+                    t = status.xpath('./@class').extract_first().strip()
+                    if t.find('disabled') < 0:
+                        out['wholesaler'] = 'Yes'
+        else:
+            logger.error('no Hersteller statuses got for {0}'.format(firmaId))
+        return out
+
+    def parseAngebotDetails(self, section, firmaId):
+        person = ''
+        phone = ''
+        email = ''
+        svgs = section.xpath('.//svg')
+        for svg in svgs:
+            t = svg.extract()
+            if t.find('"#svg-icon-user"') >= 0:
+                person = svg.xpath('./ancestor::li[1]//text()').extract_first().strip()
+            elif t.find('"#svg-icon-earphone"') >= 0:
+                aTagTxt = svg.xpath(
+                    './ancestor::a[1]/@data-content').extract_first()
+                sel = Selector(text=aTagTxt).xpath('.//text()')
+                if len(sel) == 2:
+                    phone = sel[1].extract().strip()
+                else:
+                    logger.error('no phone found for {0}'.format(firmaId))
+            elif t.find('"#svg-icon-email"') >= 0:
+                email = svg.xpath('./ancestor::a[1]//text()').extract_first().strip()[::-1]
+        return dict(person=person, phone=phone, email=email)

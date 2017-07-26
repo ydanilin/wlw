@@ -10,5 +10,24 @@ import scrapy
 
 class WlwItem(scrapy.Item):
     # define the fields for your item here like:
-    # name = scrapy.Field()
-    pass
+    query = scrapy.Field()
+    category = scrapy.Field()
+    total_firms = scrapy.Field()
+    firmaId = scrapy.Field()
+    name = scrapy.Field()
+    full_addr = scrapy.Field()
+    street = scrapy.Field()
+    building = scrapy.Field()
+    zip = scrapy.Field()
+    city = scrapy.Field()
+    phone = scrapy.Field()
+    email = scrapy.Field()
+    site = scrapy.Field()
+    angeb_name = scrapy.Field()
+    producer = scrapy.Field()
+    service = scrapy.Field()
+    distrib = scrapy.Field()
+    wholesaler = scrapy.Field()
+    a_person = scrapy.Field()
+    a_phone = scrapy.Field()
+    a_email = scrapy.Field()
