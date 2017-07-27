@@ -65,24 +65,39 @@ class WlwBaseSpider(CrawlSpider):
                 # HFS Verpackungen GmbH
             else:
                 logger.error('no name/address data for {0}'.format(firmaId))
-            t1 = self.parsePhoneEmail(vcardDiv, firmaId)
-            print(container)
+            self.parsePhoneEmail(vcardDiv, container)
+
         else:
             logger.error('no visitcard section for {0}'.format(firmaId))
 
         angebotDiv = response.xpath('//div[@id="products-content"]')
         if angebotDiv:
             angebots = angebotDiv.xpath('.//article')
+            angebotList = ''
             for angebot in angebots:
+                sta = ''
                 statuses = angebot.xpath('.//*[@title]')
-                angeName = statuses[0].xpath('.//ancestor::div[2]//text()').extract_first().strip()
                 t2 = self.parseStatus(statuses, firmaId)
-                details = angebot.xpath('./child::div')
-                t3 = self.parseAngebotDetails(details, firmaId)
-                # print(angeName, t3)
+                angeName = statuses[0].xpath('.//ancestor::div[2]//text()').extract_first().strip()
+                for key, value in t2.items():
+                    if value == 'Yes':
+                        if sta:
+                            sta += ', ' + key
+                        else:
+                            sta = key
+                if angebotList:
+                    angebotList += ', ' + angeName + ' (' + sta + ')'
+                else:
+                    angebotList = angeName + ' (' + sta + ')'
+            container['angebots'] = angebotList
+            print(container)
+            # details = angebot.xpath('./child::div')
+            # t3 = self.parseAngebotDetails(details, firmaId)
+            # print(angeName, t3)
         else:
             logger.error('no angebot section for {0}'.format(firmaId))
         # inspect_response(response, self)
+        return container
 
     def parseNameAddress(self, nameAddrDiv, container):
         firmaId = container['firmaId']
@@ -114,7 +129,8 @@ class WlwBaseSpider(CrawlSpider):
             logger.error('parsing nameAddrDiv for {0}'.format(firmaId))
         return
 
-    def parsePhoneEmail(self, vcardDiv, firmaId):
+    def parsePhoneEmail(self, vcardDiv, container):
+        firmaId = container['firmaId']
         phone = ''
         email = ''
         site = ''
@@ -132,7 +148,9 @@ class WlwBaseSpider(CrawlSpider):
                 email = svg.xpath('./ancestor::a[1]//text()').extract_first().strip()[::-1]
             elif t.find('"#svg-icon-website"') >= 0:
                 site = svg.xpath('./ancestor::a[1]/@href').extract_first().strip()
-        return dict(phone=phone, email=email, site=site)
+        container['phone'] = phone
+        container['email'] = email
+        container['site'] = site
 
     def parseStatus(self, statuses, firmaId):
         out = dict(producer='No', service='No', distrib='No', wholesaler='No')

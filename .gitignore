@@ -6,5 +6,6 @@ __pycache__/*
 .idea/
 # Scrapy HTTP cache files
 .scrapy/
-
+# Production data folder
+output/
 
