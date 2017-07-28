@@ -6,6 +6,14 @@
 # http://doc.scrapy.org/en/latest/topics/items.html
 
 import scrapy
+from scrapy.loader import ItemLoader
+from scrapy.loader.processors import TakeFirst, MapCompose, Compose, Join, Identity
+
+
+def puk(svg):
+    print('puk called')
+    if svg.find('"#svg-icon-website"') >= 0:
+        return svg.xpath('./ancestor::a[1]/@href').extract_first().strip()
 
 
 class WlwItem(scrapy.Item):
@@ -24,3 +32,12 @@ class WlwItem(scrapy.Item):
     email = scrapy.Field()
     site = scrapy.Field()
     angebots = scrapy.Field()
+
+
+class WlwLoader(ItemLoader):
+    default_input_processor = MapCompose(str.strip)
+    default_output_processor = TakeFirst()
+
+    total_firms_in = Identity()
+
+    site_in = MapCompose(puk)

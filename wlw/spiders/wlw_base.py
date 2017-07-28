@@ -5,7 +5,9 @@ from scrapy.spiders import CrawlSpider, Rule
 from scrapy.linkextractors import LinkExtractor
 from scrapy.shell import inspect_response
 from scrapy.selector import Selector
-from ..items import WlwItem
+from scrapy.loader import ItemLoader
+from scrapy.loader.processors import TakeFirst, MapCompose, Join
+from ..items import WlwItem, WlwLoader
 
 logger = logging.getLogger(__name__)
 
@@ -50,12 +52,19 @@ class WlwBaseSpider(CrawlSpider):
             yield req
 
     def parse_group(self, response):
-        firmaId = response.xpath(
-            '(.//*[@data-company-id]/@data-company-id)[1]').extract_first().strip()
-        container = WlwItem(query=response.meta['process_data']['initial_term'],
-                            category=response.meta['process_data']['classified_term'],
-                            total_firms=response.meta['process_data']['firms_total'],
-                            firmaId=firmaId)
+        l = WlwLoader(item=WlwItem(), response=response)
+        l.add_xpath('firmaId', '(.//*[@data-company-id]/@data-company-id)[1]')
+        l.add_value(None, self.responseMetaDict(response))
+        vcard = l.nested_css('div.profile-vcard')
+        nameAddr = vcard.nested_css('div.vcard-details')
+        nameAddr.add_xpath('name', 'h1//text()')
+        nameAddr.add_xpath('full_addr', 'p//text()')
+        vcard.add_value('site', vcard.nested_xpath('.//svg'))
+
+
+
+
+        container = l.load_item()
 
         vcardDiv = response.css('div.profile-vcard')
         if vcardDiv:
@@ -197,3 +206,8 @@ class WlwBaseSpider(CrawlSpider):
             elif t.find('"#svg-icon-email"') >= 0:
                 email = svg.xpath('./ancestor::a[1]//text()').extract_first().strip()[::-1]
         return dict(person=person, phone=phone, email=email)
+
+    def responseMetaDict(self, response):
+        return dict(query=response.meta['process_data']['initial_term'],
+                    category=response.meta['process_data']['classified_term'],
+                    total_firms=response.meta['process_data']['firms_total'])
