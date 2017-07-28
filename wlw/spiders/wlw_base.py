@@ -59,25 +59,17 @@ class WlwBaseSpider(CrawlSpider):
         nameAddr = vcard.nested_css('div.vcard-details')
         nameAddr.add_xpath('name', 'h1//text()')
         nameAddr.add_xpath('full_addr', 'p//text()')
-        vcard.add_value('site', vcard.nested_xpath('.//svg'))
+        svgSelector = vcard.nested_xpath('.//svg').selector
+        vcard.add_value('site', svgSelector)
+        vcard.add_value('email', svgSelector)
+        vcard.add_value('phone', svgSelector)
 
-
+        # vcard.add_value('angebots',
+        #                 l.nested_xpath('//div[@id="products-content"]//article')
+        #                 )
 
 
         container = l.load_item()
-
-        vcardDiv = response.css('div.profile-vcard')
-        if vcardDiv:
-            nameAddrDiv = vcardDiv.css('div.vcard-details')
-            if nameAddrDiv:
-                self.parseNameAddress(nameAddrDiv, container)
-                # HFS Verpackungen GmbH
-            else:
-                logger.error('no name/address data for {0}'.format(firmaId))
-            self.parsePhoneEmail(vcardDiv, container)
-
-        else:
-            logger.error('no visitcard section for {0}'.format(firmaId))
 
         angebotDiv = response.xpath('//div[@id="products-content"]')
         if angebotDiv:
@@ -100,9 +92,6 @@ class WlwBaseSpider(CrawlSpider):
                     angebotList = angeName + ' (' + sta + ')'
             container['angebots'] = angebotList
             print(container)
-            # details = angebot.xpath('./child::div')
-            # t3 = self.parseAngebotDetails(details, firmaId)
-            # print(angeName, t3)
         else:
             logger.error('no angebot section for {0}'.format(firmaId))
         # inspect_response(response, self)
@@ -137,29 +126,6 @@ class WlwBaseSpider(CrawlSpider):
         else:
             logger.error('parsing nameAddrDiv for {0}'.format(firmaId))
         return
-
-    def parsePhoneEmail(self, vcardDiv, container):
-        firmaId = container['firmaId']
-        phone = ''
-        email = ''
-        site = ''
-        svgs = vcardDiv.xpath('.//svg')
-        for svg in svgs:
-            t = svg.extract()
-            if t.find('"#svg-icon-earphone"') >= 0:
-                aTagTxt = svg.xpath('./ancestor::a[1]/@data-content').extract_first()
-                sel = Selector(text=aTagTxt).xpath('.//text()')
-                if len(sel) == 2:
-                    phone = sel[1].extract().strip()
-                else:
-                    logger.error('no phone found for {0}'.format(firmaId))
-            elif t.find('"#svg-icon-email"') >= 0:
-                email = svg.xpath('./ancestor::a[1]//text()').extract_first().strip()[::-1]
-            elif t.find('"#svg-icon-website"') >= 0:
-                site = svg.xpath('./ancestor::a[1]/@href').extract_first().strip()
-        container['phone'] = phone
-        container['email'] = email
-        container['site'] = site
 
     def parseStatus(self, statuses, firmaId):
         out = dict(producer='No', service='No', distrib='No', wholesaler='No')

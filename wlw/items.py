@@ -10,10 +10,20 @@ from scrapy.loader import ItemLoader
 from scrapy.loader.processors import TakeFirst, MapCompose, Compose, Join, Identity
 
 
-def puk(svg):
-    print('puk called')
-    if svg.find('"#svg-icon-website"') >= 0:
-        return svg.xpath('./ancestor::a[1]/@href').extract_first().strip()
+def siteBasedOnSvg(svg):
+    if svg.extract().find('"#svg-icon-website"') >= 0:
+        return svg.xpath('./ancestor::a[1]/@href').extract_first()
+
+
+def emailBasedOnSvg(svg):
+    if svg.extract().find('"#svg-icon-email"') >= 0:
+        return svg.xpath('./ancestor::a[1]//text()').extract_first()
+
+def phoneBasedOnSvg(svg):
+    if svg.extract().find('"#svg-icon-earphone"') >= 0:
+        return svg.xpath('./ancestor::a[1]/@data-content').extract_first()
+
+
 
 
 class WlwItem(scrapy.Item):
@@ -39,5 +49,6 @@ class WlwLoader(ItemLoader):
     default_output_processor = TakeFirst()
 
     total_firms_in = Identity()
-
-    site_in = MapCompose(puk)
+    site_in = MapCompose(siteBasedOnSvg, str.strip)
+    email_in = MapCompose(emailBasedOnSvg, str.strip, lambda x: x[::-1])
+    phone_in = MapCompose(phoneBasedOnSvg, str.strip)
