@@ -64,36 +64,15 @@ class WlwBaseSpider(CrawlSpider):
         vcard.add_value('email', svgSelector)
         vcard.add_value('phone', svgSelector)
 
-        # vcard.add_value('angebots',
-        #                 l.nested_xpath('//div[@id="products-content"]//article')
-        #                 )
+        angebotSel = l.nested_xpath(
+            '//div[@id="products-content"]//article').selector
+        vcard.add_value('angebots', angebotSel)
 
 
         container = l.load_item()
 
-        angebotDiv = response.xpath('//div[@id="products-content"]')
-        if angebotDiv:
-            angebots = angebotDiv.xpath('.//article')
-            angebotList = ''
-            for angebot in angebots:
-                sta = ''
-                statuses = angebot.xpath('.//*[@title]')
-                t2 = self.parseStatus(statuses, firmaId)
-                angeName = statuses[0].xpath('.//ancestor::div[2]//text()').extract_first().strip()
-                for key, value in t2.items():
-                    if value == 'Yes':
-                        if sta:
-                            sta += ', ' + key
-                        else:
-                            sta = key
-                if angebotList:
-                    angebotList += ', ' + angeName + ' (' + sta + ')'
-                else:
-                    angebotList = angeName + ' (' + sta + ')'
-            container['angebots'] = angebotList
-            print(container)
-        else:
-            logger.error('no angebot section for {0}'.format(firmaId))
+        print(container)
+
         # inspect_response(response, self)
         return container
 
