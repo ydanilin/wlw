@@ -68,10 +68,14 @@ class WlwBaseSpider(CrawlSpider):
             '//div[@id="products-content"]//article').selector
         vcard.add_value('angebots', angebotSel)
 
+        facts = l.nested_xpath('.//div[@id="data-and-facts-content"]/article')
+        l.add_value('delivery', facts.selector)
+        l.add_value('facts', facts.selector)
+        l.add_value('certificates', facts.selector)
 
         container = l.load_item()
 
-        print(container)
+        # print(container)
 
         # inspect_response(response, self)
         return container

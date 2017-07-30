@@ -25,14 +25,39 @@ def phoneBasedOnSvg(svg):
         return svg.xpath('./ancestor::a[1]/@data-content').extract_first()
 
 
-def angebot(ang):
-    statuses = ang.xpath('.//*[@title]')
-    a = statuses[0].xpath('.//ancestor::div[2]//text()').extract_first().strip()
-    s = StatusItemLoader(item=StatusItem(), selector=ang)
-    st = s.nested_xpath('.//*[@title]')
-    st.add_value('status', st.selector)
-    stt = s.load_item()
-    return '{0} ({1})'.format(a, stt['status'])
+def deliveryText(factTag):
+    if factTag.xpath('./div[1]//text()'
+                     ).extract_first().strip() == 'Liefergebiet':
+        return factTag.xpath('./div[2]//text()').extract_first()
+
+
+def certificatesText(factTag):
+    if factTag.xpath('./div[1]//text()'
+                     ).extract_first().strip() == 'Zertifikate':
+        l = factTag.xpath('./div[2]//text()').extract()
+        return ', '.join(filter(lambda x: x not in [' ', ''], l))
+
+
+
+def factsText(factTag):
+    if factTag.xpath('./div[1]//text()'
+                     ).extract_first().strip() == 'Daten und Fakten':
+        huj = factTag.xpath('./div[2]')
+        factsLoader = FactsItemLoader(item=FactsItem(), selector=huj)
+        lis = factsLoader.nested_xpath('.//li')
+        lis.add_value('facts', lis.selector)
+        fi = factsLoader.load_item()
+        return fi['facts']
+
+
+def angebot(articleTag):
+    statusLoader = StatusItemLoader(item=StatusItem(), selector=articleTag)
+    iTag = statusLoader.nested_xpath('.//*[@title]')
+    aName = iTag.get_xpath('.//ancestor::div[2]//text()',
+                           TakeFirst(), str.strip)
+    iTag.add_value('status', iTag.selector)
+    statItem = statusLoader.load_item()
+    return '{0} ({1})'.format(aName, statItem['status'])
 
 
 class WlwItem(scrapy.Item):
@@ -50,11 +75,18 @@ class WlwItem(scrapy.Item):
     phone = scrapy.Field()
     email = scrapy.Field()
     site = scrapy.Field()
+    delivery = scrapy.Field()
+    facts = scrapy.Field()
+    certificates = scrapy.Field()
     angebots = scrapy.Field()
 
 
 class StatusItem(scrapy.Item):
     status = scrapy.Field()
+
+
+class FactsItem(scrapy.Item):
+    facts = scrapy.Field()
 
 
 class WlwLoader(ItemLoader):
@@ -67,11 +99,14 @@ class WlwLoader(ItemLoader):
     phone_in = MapCompose(phoneBasedOnSvg, str.strip)
     angebots_in = MapCompose(angebot, str.strip)
     angebots_out = Join(', ')
+    delivery_in = MapCompose(deliveryText, str.strip)
+    facts_in = MapCompose(factsText, str.strip)
+    certificates_in = MapCompose(certificatesText, str.strip)
 
 
-def huj(t):
-    if t.xpath('./@class').extract_first().find('disabled') < 0:
-        type_ = t.xpath('./@title').extract_first().strip()
+def isStatusActive(iTag):
+    if iTag.xpath('./@class').extract_first().find('disabled') < 0:
+        type_ = iTag.xpath('./@title').extract_first().strip()
         if type_ == 'Hersteller':
             return 'producer'
         elif type_ == 'Dienstleister':
@@ -83,7 +118,15 @@ def huj(t):
 
 
 class StatusItemLoader(ItemLoader):
-    status_in = MapCompose(huj)
+    status_in = MapCompose(isStatusActive)
     status_out = Join(', ')
 
 
+def mergeFact(liTag):
+    l = liTag.xpath('.//text()').extract()
+    return ' '.join(filter(lambda x: x != ' ', l))
+
+
+class FactsItemLoader(ItemLoader):
+    facts_in = MapCompose(mergeFact)
+    facts_out = Join(', ')
