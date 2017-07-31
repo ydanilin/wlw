@@ -19,15 +19,20 @@ class WlwBaseSpider(CrawlSpider):
                   # 'Werbetechnik']
 
     def huj(value):
-        t1 = -2  # value.find('blaudruck')
-        t2 = -2  # value.find('golddruck')
-        t3 = -2  # value.find('kranzschleifendruck')
-        t4 = -2  # value.find('lithographie-steindruck')
-        t5 = value.find('tiefdruck')
-        if t1 >= 0 or t2 >= 0 or t3 >= 0 or t4 >= 0 or t5 >= 0:
-            return value
-        else:
+        # exclude
+        t1 = value.find('bogenoffsetdruck?')
+        t2 = value.find('druck-von-buechern?')
+        t3 = value.find('grossformatdruck?')
+        t4 = value.find('kataloge?')
+        t5 = value.find('offsetdruck?')
+        t6 = value.find('siebdruck?')
+        t7 = value.find('textildruck?')
+
+        if t1 >= 0 or t2 >= 0 or t3 >= 0 or t4 >= 0 or t5 >= 0 or t6 >= 0 or t7 >= 0:
+            logger.info('Link dropped: {0}'.format(value))
             return None
+        else:
+            return value
 
     rules = (
         # 0. to go from start urls keyword synonym list to specific tifedruck
@@ -75,86 +80,8 @@ class WlwBaseSpider(CrawlSpider):
 
         container = l.load_item()
 
-        # print(container)
-
         # inspect_response(response, self)
         return container
-
-    def parseNameAddress(self, nameAddrDiv, container):
-        firmaId = container['firmaId']
-        nameAddrLst = nameAddrDiv.xpath('.//text()').extract()
-        if len(nameAddrLst) == 2:
-            container['name'] = nameAddrLst[0].strip()
-            addrFull = nameAddrLst[1].strip()
-            container['full_addr'] = addrFull
-            addrSplitted = re.split(r',\s+', addrFull)
-            if len(addrSplitted) == 2:
-                stHaus, indStadt = addrSplitted
-                indSplitted = re.split(r'(DE-\d+)\s?', indStadt)
-                if len(indSplitted) == 3:
-                    dummy, index, stadt = indSplitted
-                    container['zip'] = index
-                    container['city'] = stadt
-                else:
-                    logger.error('when re.split index, city for {0}'.format(firmaId))
-                streetSplitted = re.split(r'\s+(\d+)', stHaus)
-                if len(streetSplitted) == 3:
-                    street, house, dummy = streetSplitted
-                    container['street'] = street
-                    container['building'] = house
-                else:
-                    logger.error('when re.split street, for {0}'.format(firmaId))
-            else:
-                logger.error('when re.split full address for {0}'.format(firmaId))
-        else:
-            logger.error('parsing nameAddrDiv for {0}'.format(firmaId))
-        return
-
-    def parseStatus(self, statuses, firmaId):
-        out = dict(producer='No', service='No', distrib='No', wholesaler='No')
-        if len(statuses) == 4:
-            for status in statuses:
-
-                if status.xpath('./@title').extract_first().strip() == 'Hersteller':
-                    t = status.xpath('./@class').extract_first().strip()
-                    if t.find('disabled') < 0:
-                        out['producer'] = 'Yes'
-                elif status.xpath('./@title').extract_first().strip() == 'Dienstleister':
-                    t = status.xpath('./@class').extract_first().strip()
-                    if t.find('disabled') < 0:
-                        out['service'] = 'Yes'
-                elif status.xpath('./@title').extract_first().strip() == 'Händler':
-                    t = status.xpath('./@class').extract_first().strip()
-                    if t.find('disabled') < 0:
-                        out['distrib'] = 'Yes'
-                elif status.xpath('./@title').extract_first().strip() == 'Großhändler':
-                    t = status.xpath('./@class').extract_first().strip()
-                    if t.find('disabled') < 0:
-                        out['wholesaler'] = 'Yes'
-        else:
-            logger.error('no Hersteller statuses got for {0}'.format(firmaId))
-        return out
-
-    def parseAngebotDetails(self, section, firmaId):
-        person = ''
-        phone = ''
-        email = ''
-        svgs = section.xpath('.//svg')
-        for svg in svgs:
-            t = svg.extract()
-            if t.find('"#svg-icon-user"') >= 0:
-                person = svg.xpath('./ancestor::li[1]//text()').extract_first().strip()
-            elif t.find('"#svg-icon-earphone"') >= 0:
-                aTagTxt = svg.xpath(
-                    './ancestor::a[1]/@data-content').extract_first()
-                sel = Selector(text=aTagTxt).xpath('.//text()')
-                if len(sel) == 2:
-                    phone = sel[1].extract().strip()
-                else:
-                    logger.error('no phone found for {0}'.format(firmaId))
-            elif t.find('"#svg-icon-email"') >= 0:
-                email = svg.xpath('./ancestor::a[1]//text()').extract_first().strip()[::-1]
-        return dict(person=person, phone=phone, email=email)
 
     def responseMetaDict(self, response):
         return dict(query=response.meta['process_data']['initial_term'],

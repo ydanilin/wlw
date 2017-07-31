@@ -57,7 +57,12 @@ def angebot(articleTag):
                            TakeFirst(), str.strip)
     iTag.add_value('status', iTag.selector)
     statItem = statusLoader.load_item()
-    return '{0} ({1})'.format(aName, statItem['status'])
+    statuses = statItem.get('status')
+    if statuses:
+        statText = ' (' + statuses + ')'
+    else:
+        statText = ''
+    return aName + statText
 
 
 class WlwItem(scrapy.Item):
@@ -123,8 +128,8 @@ class StatusItemLoader(ItemLoader):
 
 
 def mergeFact(liTag):
-    l = liTag.xpath('.//text()').extract()
-    return ' '.join(filter(lambda x: x != ' ', l))
+    L = liTag.xpath('.//text()').extract()
+    return ' '.join(filter(lambda x: x != ' ', L))
 
 
 class FactsItemLoader(ItemLoader):

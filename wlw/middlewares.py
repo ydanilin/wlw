@@ -19,12 +19,12 @@ class WlwSpiderMiddleware(object):
         return s
 
     def process_spider_input(self, response, spider):
-        if response.meta.get('rule', 77) == 2:
-            logger.info('******************   Next page loaded')
+        # if response.meta.get('rule', 77) == 2:
+        #     logger.info('******************   Next page loaded')
         if response.meta.get('rule', 77) == 1:
             # means one firm already processed:
-            x = self.stats.get_value('all_firms') - 1  # tuda
-            self.stats.set_value('all_firms', x)  # tuda
+            x = self.stats.get_value('all_firms') - 1
+            self.stats.set_value('all_firms', x)
             term = response.meta['process_data']['initial_term'] + '/' +\
                    response.meta['process_data']['classified_term']
             total = response.meta['process_data']['firms_total']
@@ -40,7 +40,9 @@ class WlwSpiderMiddleware(object):
                     msg = ('For category %(c)s'
                            ' all firms fetched (%(a)d).'
                            ' %(x)d firms remain to process so far')
-                    log_args = {'c': response.meta['process_data']['classified_term'],
+                    query = response.meta['process_data']['initial_term']
+                    classif = response.meta['process_data']['classified_term']
+                    log_args = {'c': query + '/' + classif,
                                 'a': response.meta['process_data']['firms_total'],
                                 'x': self.stats.get_value('all_firms')}
                     logger.info(msg, log_args)
@@ -74,9 +76,9 @@ class WlwSpiderMiddleware(object):
                             was = allFirms
                             allFirms += int(txt[1])
                             self.stats.set_value('all_firms', allFirms)
-                            msg = ('Added to queue: was %(w)d, added %(a)d')
-                            args = {'w': was, 'a': int(txt[1])}
-                            logger.info(msg, args)
+                            # msg = ('Added to queue: was %(w)d, added %(a)d')
+                            # args = {'w': was, 'a': int(txt[1])}
+                            # logger.info(msg, args)
                     # ... and request triggered by Rule 1 (to fetch firm page)
                     if i.meta.get('rule', 77) == 1:
 

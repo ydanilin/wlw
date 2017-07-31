@@ -32,3 +32,7 @@ LOG_LEVEL=INFO
 HTTPCACHE_ENABLED=1
 -s
 LOGSTATS_INTERVAL=10
+
+https://stackoverflow.com/questions/13527921/scrapy-silently-drop-an-item
+
+sometimes cache blocks requests. delete cache in this case.
