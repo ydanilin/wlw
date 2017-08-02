@@ -20,6 +20,7 @@ NEWSPIDER_MODULE = 'wlw.spiders'
 
 # Obey robots.txt rules
 ROBOTSTXT_OBEY = False
+JOBDIR = 'crawls/'
 
 # Configure maximum concurrent requests performed by Scrapy (default: 16)
 CONCURRENT_REQUESTS = 1
