@@ -1,18 +1,21 @@
 # -*- coding: utf-8 -*-
 import logging
-import re
+import json
 from scrapy.spiders import CrawlSpider, Rule
 from scrapy.linkextractors import LinkExtractor
+from scrapy.http import HtmlResponse
 from scrapy.shell import inspect_response
-from scrapy.selector import Selector
-from scrapy.loader import ItemLoader
-from scrapy.loader.processors import TakeFirst, MapCompose, Join
 from ..items import WlwItem, WlwLoader
+from ..dbms import DBMS
 
 logger = logging.getLogger(__name__)
 
 
 class WlwBaseSpider(CrawlSpider):
+    def __init__(self, *args, **kwargs):
+        super(WlwBaseSpider, self).__init__(*args, *kwargs)
+        self.dbms = DBMS(self.name + '.db')
+
     name = 'wlw_base'
     allowed_domains = ['wlw.de']
     start_urls = ['Druckereien']#,
@@ -36,7 +39,8 @@ class WlwBaseSpider(CrawlSpider):
 
     rules = (
         # 0. to go from start urls keyword synonym list to specific tifedruck
-        Rule(LinkExtractor(restrict_css='a.list-group-item', process_value=huj)),
+        Rule(LinkExtractor(restrict_css='a.list-group-item', process_value=huj)
+             ),
         # 1. from firms list to specific firm
         Rule(LinkExtractor(
             restrict_xpaths='//a[@data-track-type="click_serp_company_name"]'),
@@ -52,8 +56,7 @@ class WlwBaseSpider(CrawlSpider):
             fullUrl = ('https://www.wlw.de/de/kategorien?utf8=%E2%9C%93'
                        '&entered_search=1&q=') + url
             req = self.make_requests_from_url(fullUrl)
-            req.meta['process_data'] = dict(initial_term=url,
-                                            firms_pulled=0)
+            req.meta['job_dat'] = dict(initial_term=url, firms_pulled=0)
             yield req
 
     def parse_group(self, response):
@@ -84,6 +87,22 @@ class WlwBaseSpider(CrawlSpider):
         return container
 
     def responseMetaDict(self, response):
-        return dict(query=response.meta['process_data']['initial_term'],
-                    category=response.meta['process_data']['classified_term'],
-                    total_firms=response.meta['process_data']['firms_total'])
+        return dict(query=response.meta['job_dat']['initial_term'],
+                    category=response.meta['job_dat']['category'],
+                    total_firms=response.meta['job_dat']['total'])
+
+    def _requests_to_follow(self, response):
+        if not isinstance(response, HtmlResponse):
+            return
+        seen = set()
+        for n, rule in enumerate(self._rules):
+            links = [lnk for lnk in rule.link_extractor.extract_links(response)
+                     if lnk not in seen]
+            if links and rule.process_links:
+                links = rule.process_links(links)
+            linksGot = len(links)
+            response.meta['job_dat']['linksGot'] = linksGot
+            for link in links:
+                seen.add(link)
+                r = self._build_request(n, link)
+                yield rule.process_request(r)

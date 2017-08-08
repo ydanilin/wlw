@@ -1,4 +1,4 @@
-conda create --name <name> python=3.5
+﻿conda create --name <name> python=3.5
 
 To start new project:
 1. activate tomik
@@ -36,3 +36,5 @@ LOGSTATS_INTERVAL=10
 https://stackoverflow.com/questions/13527921/scrapy-silently-drop-an-item
 
 sometimes cache blocks requests. delete cache in this case.
+
+http://bus23.ru/

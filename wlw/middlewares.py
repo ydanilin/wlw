@@ -21,13 +21,13 @@ class WlwSpiderMiddleware(object):
     def process_spider_input(self, response, spider):
         # if response.meta.get('rule', 77) == 2:
         #     logger.info('******************   Next page loaded')
+        rule = response.meta.get('rule')
+        dat = response.meta['job_dat']
         if response.meta.get('rule', 77) == 1:
             # means one firm already processed:
-            x = self.stats.get_value('all_firms') - 1
-            self.stats.set_value('all_firms', x)
-            term = response.meta['process_data']['initial_term'] + '/' +\
-                   response.meta['process_data']['classified_term']
-            total = response.meta['process_data']['firms_total']
+            term = response.meta['job_dat']['initial_term'] + '/' +\
+                   response.meta['job_dat']['category']
+            total = response.meta['job_dat']['total']
             t = self.stats.get_value(term)
             if not t:  # if synonym is not in the stats
                 # create entry and set downloaded to 1
@@ -36,59 +36,74 @@ class WlwSpiderMiddleware(object):
             else:
                 t['downl'] += 1
                 # signal when all firms for sysnonym are fetched
-                if t['downl'] == response.meta['process_data']['firms_total']:
+                if t['downl'] == response.meta['job_dat']['total']:
                     msg = ('For category %(c)s'
-                           ' all firms fetched (%(a)d).'
-                           ' %(x)d firms remain to process so far')
-                    query = response.meta['process_data']['initial_term']
-                    classif = response.meta['process_data']['classified_term']
+                           ' all firms fetched (%(a)d).')
+                    query = response.meta['job_dat']['initial_term']
+                    classif = response.meta['job_dat']['category']
                     log_args = {'c': query + '/' + classif,
-                                'a': response.meta['process_data']['firms_total'],
-                                'x': self.stats.get_value('all_firms')}
+                                'a': response.meta['job_dat']['total']}
                     logger.info(msg, log_args)
         return None
 
     def process_spider_output(self, response, result, spider):
-        allFirms = self.stats.get_value('all_firms')
-        if not allFirms:  # that means we just started the process
-            self.stats.set_value('all_firms', 0)
-            allFirms = 0
         for i in result:
             if isinstance(i, Request):
-                i.meta['process_data'] = response.meta['process_data'].copy()
-                ruleNo = response.meta.get('rule', 77)
-                # if response came from request triggered by
-                # either rule 0: from synonyms page to firms listing first page
-                # or rule 2: to next listing page
-                if ruleNo in [0, 2]:
-                    # synonym term and amount of firms
-                    txt = re.split(r'(\d+) Anbieter',
-                                   response.meta.get('link_text', ''))
-                    if len(txt) == 3:
-                        i.meta['process_data']['classified_term'] = txt[0]
-                        i.meta['process_data']['firms_total'] = int(txt[1])
-                        # one response synonyms page creates multiple requests
-                        # to firms. so firms accumulator for same response
-                        # should be here
-                        # if we're first time on this response
-                        if response.meta['process_data']['firms_pulled'] == 0:
-                            # add firms from this synonym to total
-                            was = allFirms
-                            allFirms += int(txt[1])
-                            self.stats.set_value('all_firms', allFirms)
-                            # msg = ('Added to queue: was %(w)d, added %(a)d')
-                            # args = {'w': was, 'a': int(txt[1])}
-                            # logger.info(msg, args)
-                    # ... and request triggered by Rule 1 (to fetch firm page)
-                    if i.meta.get('rule', 77) == 1:
+                i.meta['job_dat'] = response.meta['job_dat'].copy()
 
-                        # add to firms accumulator
-                        count = response.meta['process_data']['firms_pulled']
-                        count += 1
-                        response.meta['process_data']['firms_pulled'] = count
-                        # ... and copy this to request
-                        i.meta['process_data']['firms_pulled'] = count
-            yield i
+                spawnedByRule = response.meta.get('rule')
+                willRequestByRule = i.meta.get('rule')
+
+                self.assignPage(spawnedByRule, willRequestByRule, response, i)
+
+                if (not spawnedByRule) and (willRequestByRule == 0):
+                    part = i.url.rsplit('?', 1)[0]
+                    nameInUrl = part.rsplit('/', 1)[1]
+                    catRecord = spider.dbms.getCategory(nameInUrl)
+                    if catRecord:
+                        # set discard flag here
+                        category = catRecord['caption']
+                        total = catRecord['total']
+                        scraped = catRecord['scraped']
+                        pages = spider.getPageSeen(nameInUrl)
+                    else:  # open new category in db
+                        txt = i.meta.get('link_text', '')
+                        catDetails = re.split(r'(\d+) Anbieter', txt)
+                        if len(catDetails) == 3:
+                            category, total, dummy = catDetails
+                            scraped = 0
+                            pages = []
+                            spider.dbms.addCategory(nameInUrl, category,
+                                                    int(total))
+                        else:
+                            category = None
+                            total = None
+                            i.meta['job_dat']['discard'] = True
+                            msg = ('cannot parse name & amounts for'
+                                   ' category: {0}. Category discarded')
+                            logger.error(msg.format(txt))
+                    if scraped >= total:
+                        i.meta['job_dat']['discard'] = True
+                    else:
+                        dic = dict(scraped=scraped)
+
+                    i.meta['job_dat']['nameInUrl'] = nameInUrl
+                    i.meta['job_dat']['category'] = category
+                    i.meta['job_dat']['total'] = int(total)
+
+                if (spawnedByRule in [0, 2]) and (willRequestByRule == 1):
+                    pageSeen = spider.dbms.getPageSeen(
+                        i.meta['job_dat']['nameInUrl'])
+                    if i.meta['job_dat']['page'] in pageSeen:
+                        i.meta['job_dat']['discard'] = True
+
+                # final decision
+                a = i.meta.get('job_dat', {})
+                discard = i.meta.get('job_dat', {}).get('discard')
+                if not discard:
+                    yield i
+            else:
+                yield i
 
     def process_spider_exception(self, response, exception, spider):
         # Called when a spider or process_spider_input() method
@@ -109,3 +124,14 @@ class WlwSpiderMiddleware(object):
 
     def spider_opened(self, spider):
         spider.logger.info('Spider opened: %s' % spider.name)
+
+    def assignPage(self, spawnedByRule, willRequestByRule, resp, req):
+        if (not spawnedByRule) and (willRequestByRule == 0):
+            req.meta['job_dat']['page'] = 1
+        if spawnedByRule in [0, 2]:
+            if willRequestByRule == 1:
+                pg = resp.meta['job_dat']['page']
+                req.meta['job_dat']['page'] = pg
+            if willRequestByRule == 2:
+                pg = resp.meta['job_dat']['page']
+                req.meta['job_dat']['page'] = pg + 1
