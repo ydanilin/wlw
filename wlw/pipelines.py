@@ -46,14 +46,15 @@ class WlwPipeline(object):
 
 class DuplicatesPipeline(object):
 
-    def __init__(self, stats):
-        self.ids_seen = set()
-        self.stats = stats
+    def __init__(self, crawler):
+        # self.ids_seen = set()
+        self.ids_seen = crawler.spider.dbms.loadIds()
+        self.stats = crawler.stats
 
     @classmethod
     def from_crawler(cls, crawler):
         # This method is used by Scrapy to create your spiders.
-        s = cls(crawler.stats)
+        s = cls(crawler)
         return s
 
     def process_item(self, item, spider):
@@ -61,7 +62,9 @@ class DuplicatesPipeline(object):
             self.stats.inc_value('Duplicated_firms')
             raise DropItem("Duplicate item found for: %s" % item['firmaId'])
         else:
-            self.ids_seen.add(item['firmaId'])
+            it = int(item['firmaId'])
+            self.ids_seen.add(it)
+            spider.dbms.addId(it)
             return item
 
 

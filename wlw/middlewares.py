@@ -25,25 +25,27 @@ class WlwSpiderMiddleware(object):
         dat = response.meta['job_dat']
         if response.meta.get('rule', 77) == 1:
             # means one firm already processed:
-            term = response.meta['job_dat']['initial_term'] + '/' +\
-                   response.meta['job_dat']['category']
-            total = response.meta['job_dat']['total']
-            t = self.stats.get_value(term)
-            if not t:  # if synonym is not in the stats
-                # create entry and set downloaded to 1
-                self.stats.set_value(term, dict(downl=1,
-                                                total=int(total)))
-            else:
-                t['downl'] += 1
+            nameInUrl = response.meta['job_dat']['nameInUrl']
+            page = response.meta['job_dat']['page']
+            record = self.stats.get_value(nameInUrl)
+            pg = record['pages'].get(page, 0) + 1
+            scr = record['scraped'] + 1
+            record['pages'][page] = pg
+            record['scraped'] = scr
+            self.stats.set_value(nameInUrl, record)
+
+            if pg == response.meta['job_dat']['linksGot']:
+                spider.dbms.addPageSeen(nameInUrl, page)
+
+            if scr == response.meta['job_dat']['total']:
                 # signal when all firms for sysnonym are fetched
-                if t['downl'] == response.meta['job_dat']['total']:
-                    msg = ('For category %(c)s'
-                           ' all firms fetched (%(a)d).')
-                    query = response.meta['job_dat']['initial_term']
-                    classif = response.meta['job_dat']['category']
-                    log_args = {'c': query + '/' + classif,
-                                'a': response.meta['job_dat']['total']}
-                    logger.info(msg, log_args)
+                msg = ('For category %(c)s'
+                       ' all firms fetched (%(a)d).')
+                query = response.meta['job_dat']['initial_term']
+                classif = response.meta['job_dat']['category']
+                log_args = {'c': query + '/' + classif,
+                            'a': response.meta['job_dat']['total']}
+                logger.info(msg, log_args)
         return None
 
     def process_spider_output(self, response, result, spider):
@@ -65,7 +67,7 @@ class WlwSpiderMiddleware(object):
                         category = catRecord['caption']
                         total = catRecord['total']
                         scraped = catRecord['scraped']
-                        pages = spider.getPageSeen(nameInUrl)
+                        pages = spider.dbms.getPageSeen(nameInUrl)
                     else:  # open new category in db
                         txt = i.meta.get('link_text', '')
                         catDetails = re.split(r'(\d+) Anbieter', txt)
@@ -85,8 +87,9 @@ class WlwSpiderMiddleware(object):
                     if scraped >= total:
                         i.meta['job_dat']['discard'] = True
                     else:
-                        dic = dict(scraped=scraped)
-
+                        dic = dict(scraped=scraped, total=total, pages={},
+                                   caption=category)
+                        self.stats.set_value(nameInUrl, dic)
                     i.meta['job_dat']['nameInUrl'] = nameInUrl
                     i.meta['job_dat']['category'] = category
                     i.meta['job_dat']['total'] = int(total)
