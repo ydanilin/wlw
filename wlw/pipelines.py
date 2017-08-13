@@ -8,6 +8,7 @@ import logging
 import re
 from scrapy import logformatter
 from scrapy.exceptions import DropItem
+from .dbms import DBMS
 
 logger = logging.getLogger(__name__)
 
@@ -48,25 +49,50 @@ class DuplicatesPipeline(object):
 
     def __init__(self, crawler):
         # self.ids_seen = set()
-        self.ids_seen = crawler.spider.dbms.loadIds()
+        self.dbms = None
+        self.ids_seen = None
         self.stats = crawler.stats
 
     @classmethod
     def from_crawler(cls, crawler):
         # This method is used by Scrapy to create your spiders.
         s = cls(crawler)
+        # crawler.signals.connect(s.engine_stopped, signals.spider_closed)
         return s
 
     def process_item(self, item, spider):
-        if item['firmaId'] in self.ids_seen:
-            self.stats.inc_value('Duplicated_firms')
+        self.stats.inc_value('aa_proc_item_called')
+        call = self.stats.get_value('aa_proc_item_called')
+        itId = int(item['firmaId'])
+        if itId in spider.ids_seen:
+            self.stats.inc_value('Duplicated_items')
+            logger.warning("Duplicate item found for: %s" % item['firmaId'])
             raise DropItem("Duplicate item found for: %s" % item['firmaId'])
         else:
-            it = int(item['firmaId'])
-            self.ids_seen.add(it)
-            spider.dbms.addId(it)
+            # self.ids_seen.add(itId)
+            spider.ids_seen.add(itId)
+            page = int(item['page'])
+            tOnPage = int(item['totalOnPage'])
+            qry = item['queryCat']
+            self.dbms.addIdSeen(itId, page, tOnPage, qry)
             return item
 
+    def open_spider(self, spider):
+        self.dbms = DBMS(spider.name + '.db')
+        spider.dbms = self.dbms
+        # self.ids_seen = self.dbms.loadIdsSeen()
+        spider.ids_seen = self.dbms.loadIdsSeen()
+
+    def close_spider(self, spider):
+        self.dbms.terminateDbms()
+        logger.warning('base closed (close_spider)')
+
+    # def spider_closed(self, spider):
+    #     spider.dbms.terminateDbms()
+
+    # def __del__(self):
+    #     self.dbms.terminateDbms()
+    # TODO study deferred
 
 class PoliteLogFormatter(logformatter.LogFormatter):
     def dropped(self, item, exception, response, spider):

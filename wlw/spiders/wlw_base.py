@@ -1,12 +1,11 @@
 # -*- coding: utf-8 -*-
 import logging
-import json
+import re
 from scrapy.spiders import CrawlSpider, Rule
 from scrapy.linkextractors import LinkExtractor
 from scrapy.http import HtmlResponse
 from scrapy.shell import inspect_response
 from ..items import WlwItem, WlwLoader
-from ..dbms import DBMS
 
 logger = logging.getLogger(__name__)
 
@@ -14,7 +13,8 @@ logger = logging.getLogger(__name__)
 class WlwBaseSpider(CrawlSpider):
     def __init__(self, *args, **kwargs):
         super(WlwBaseSpider, self).__init__(*args, *kwargs)
-        self.dbms = DBMS(self.name + '.db')
+        self.dbms = None
+        self.ids_seen = None
 
     name = 'wlw_base'
     allowed_domains = ['wlw.de']
@@ -37,6 +37,18 @@ class WlwBaseSpider(CrawlSpider):
         else:
             return value
 
+    def addFirmaId(request):
+        part = request.url.split('?')[0]
+        firm = part.rsplit('/', 1)[1]
+        grp = re.search(r'\d+', firm)
+        if grp:
+            output = grp.group()
+        else:
+            output = 0
+            logger.error('cannot parse firmaId for url %s' % request.url)
+        request.meta['firmaId'] = output
+        return request
+
     rules = (
         # 0. to go from start urls keyword synonym list to specific tifedruck
         Rule(LinkExtractor(restrict_css='a.list-group-item', process_value=huj)
@@ -44,7 +56,7 @@ class WlwBaseSpider(CrawlSpider):
         # 1. from firms list to specific firm
         Rule(LinkExtractor(
             restrict_xpaths='//a[@data-track-type="click_serp_company_name"]'),
-            callback='parse_group'),
+            callback='parse_group', process_request=addFirmaId),
         # 2. from a firm list page to the next one
         Rule(LinkExtractor(restrict_xpaths=('//ul[@class="pagination"]/'
                                             'li[not(@class)]/'
@@ -62,6 +74,8 @@ class WlwBaseSpider(CrawlSpider):
     def parse_group(self, response):
         l = WlwLoader(item=WlwItem(), response=response)
         l.add_xpath('firmaId', '(.//*[@data-company-id]/@data-company-id)[1]')
+        #  The given field_name can be None, in which case values for multiple
+        #  fields may be added
         l.add_value(None, self.responseMetaDict(response))
         vcard = l.nested_css('div.profile-vcard')
         nameAddr = vcard.nested_css('div.vcard-details')
@@ -89,7 +103,12 @@ class WlwBaseSpider(CrawlSpider):
     def responseMetaDict(self, response):
         return dict(query=response.meta['job_dat']['initial_term'],
                     category=response.meta['job_dat']['category'],
-                    total_firms=response.meta['job_dat']['total'])
+                    total_firms=response.meta['job_dat']['total'],
+                    page=response.meta['job_dat']['page'],
+                    totalOnPage=response.meta['job_dat']['linksGot'],
+                    queryCat=response.meta['job_dat']['initial_term'] + '/' + \
+                             response.meta['job_dat']['category'])
+    # TODO: how to combine multivalue in exporter
 
     def _requests_to_follow(self, response):
         if not isinstance(response, HtmlResponse):

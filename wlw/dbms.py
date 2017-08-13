@@ -27,7 +27,16 @@ class DBMS:
                                  WHERE name_in_url = ?"""
         self.sqlAddPageSeen = """UPDATE job_state SET page_seen = :pages
                                  WHERE name_in_url = :nameInUrl"""
-        self.sqlAddId = """INSERT INTO items_seen (item_no) VALUES (?)"""
+        self.sqlAddId = """INSERT INTO items_seen (item_no,
+                                                   page,
+                                                   tot_on_pg,
+                                                   category)
+                           VALUES (:itId,
+                                   :page,
+                                   :tOnPage,
+                                   :qry)"""
+        self.sqlUpdateScraped = """UPDATE job_state SET scraped = :scr
+                                   WHERE name_in_url = :name"""
 
     def getCategory(self, nameInUrl):
         output = self.cur.execute(self.sqlGetCategory, (nameInUrl,)).fetchone()
@@ -55,17 +64,31 @@ class DBMS:
                                                     pages=output))
         self.conn.commit()
 
-    def loadIds(self):
-        sett = self.cur.execute('SELECT * FROM items_seen').fetchall()
+    def loadIdsSeen(self):
+        sett = self.cur.execute('SELECT item_no FROM items_seen').fetchall()
         if sett:
             output = [x['item_no'] for x in sett]
         else:
             output = []
         return set(output)
 
-    def addId(self, id_):
-        self.conn.execute(self.sqlAddId, (id_,))
+    def addIdSeen(self, itId, page, tOnPage, qry):
+        self.conn.execute(self.sqlAddId, dict(itId=itId, page=page,
+                                              tOnPage=tOnPage, qry=qry))
+        self.bulkCommit()
+        # self.conn.commit()
+
+    def updateScraped(self, nameInUrl, scr):
+        self.conn.execute(self.sqlUpdateScraped, dict(name=nameInUrl, scr=scr))
+        self.bulkCommit()
+
+    def bulkCommit(self):
         self.dumpCount += 1
         if self.dumpCount == self.threshold:
             self.conn.commit()
             self.dumpCount = 0
+
+    # ----------- terminate
+    def terminateDbms(self):
+        self.conn.commit()
+        self.conn.close()

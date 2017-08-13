@@ -7,7 +7,7 @@
 
 import scrapy
 from scrapy.loader import ItemLoader
-from scrapy.loader.processors import TakeFirst, MapCompose, Compose, Join, Identity
+from scrapy.loader.processors import TakeFirst, MapCompose, Join, Identity
 
 
 def siteBasedOnSvg(svg):
@@ -84,6 +84,10 @@ class WlwItem(scrapy.Item):
     facts = scrapy.Field()
     certificates = scrapy.Field()
     angebots = scrapy.Field()
+    # debug fields
+    page = scrapy.Field()
+    totalOnPage = scrapy.Field()
+    queryCat = scrapy.Field()
 
 
 class StatusItem(scrapy.Item):
@@ -107,6 +111,8 @@ class WlwLoader(ItemLoader):
     delivery_in = MapCompose(deliveryText, str.strip)
     facts_in = MapCompose(factsText, str.strip)
     certificates_in = MapCompose(certificatesText, str.strip)
+    page_in = Identity()
+    totalOnPage_in = Identity()
 
 
 def isStatusActive(iTag):

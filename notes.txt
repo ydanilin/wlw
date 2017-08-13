@@ -38,3 +38,7 @@ https://stackoverflow.com/questions/13527921/scrapy-silently-drop-an-item
 sometimes cache blocks requests. delete cache in this case.
 
 http://bus23.ru/
+
+Item exporters:
+https://stackoverflow.com/questions/6943778/python-scrapy-how-to-get-csvitemexporter-to-write-columns-in-a-specific-order
+https://stackoverflow.com/questions/5245047/modifiying-csv-export-in-scrapy

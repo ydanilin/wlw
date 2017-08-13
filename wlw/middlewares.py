@@ -25,27 +25,7 @@ class WlwSpiderMiddleware(object):
         dat = response.meta['job_dat']
         if response.meta.get('rule', 77) == 1:
             # means one firm already processed:
-            nameInUrl = response.meta['job_dat']['nameInUrl']
-            page = response.meta['job_dat']['page']
-            record = self.stats.get_value(nameInUrl)
-            pg = record['pages'].get(page, 0) + 1
-            scr = record['scraped'] + 1
-            record['pages'][page] = pg
-            record['scraped'] = scr
-            self.stats.set_value(nameInUrl, record)
-
-            if pg == response.meta['job_dat']['linksGot']:
-                spider.dbms.addPageSeen(nameInUrl, page)
-
-            if scr == response.meta['job_dat']['total']:
-                # signal when all firms for sysnonym are fetched
-                msg = ('For category %(c)s'
-                       ' all firms fetched (%(a)d).')
-                query = response.meta['job_dat']['initial_term']
-                classif = response.meta['job_dat']['category']
-                log_args = {'c': query + '/' + classif,
-                            'a': response.meta['job_dat']['total']}
-                logger.info(msg, log_args)
+            self.logPacket(response, spider)
         return None
 
     def process_spider_output(self, response, result, spider):
@@ -99,6 +79,13 @@ class WlwSpiderMiddleware(object):
                         i.meta['job_dat']['nameInUrl'])
                     if i.meta['job_dat']['page'] in pageSeen:
                         i.meta['job_dat']['discard'] = True
+                    fid = int(i.meta['firmaId'])
+                    if fid in spider.ids_seen:
+                        i.meta['job_dat']['discard'] = True
+                        self.logPacket(i, spider, supress_scraped=True)
+                        logger.warning(
+                            "Duplicate request found for: %s" % i.meta['firmaId'])
+                        self.stats.inc_value('Duplicated_requests')
 
                 # final decision
                 a = i.meta.get('job_dat', {})
@@ -138,3 +125,32 @@ class WlwSpiderMiddleware(object):
             if willRequestByRule == 2:
                 pg = resp.meta['job_dat']['page']
                 req.meta['job_dat']['page'] = pg + 1
+
+    def logPacket(self, packet, spider, supress_scraped=False):
+        nameInUrl = packet.meta['job_dat']['nameInUrl']
+        page = packet.meta['job_dat']['page']
+        record = self.stats.get_value(nameInUrl)
+        pg = record['pages'].get(page, 0) + 1
+        record['pages'][page] = pg
+        if not supress_scraped:
+            scr = record['scraped'] + 1
+        else:
+            scr = record['scraped']
+        record['scraped'] = scr
+        self.stats.set_value(nameInUrl, record)
+
+        if not supress_scraped:
+            spider.dbms.updateScraped(nameInUrl, scr)
+
+            if pg == packet.meta['job_dat']['linksGot']:
+                spider.dbms.addPageSeen(nameInUrl, page)
+
+            if scr == packet.meta['job_dat']['total']:
+                # signal when all firms for sysnonym are fetched
+                msg = ('For category %(c)s'
+                       ' all firms fetched (%(a)d).')
+                query = packet.meta['job_dat']['initial_term']
+                classif = packet.meta['job_dat']['category']
+                log_args = {'c': query + '/' + classif,
+                            'a': packet.meta['job_dat']['total']}
+                logger.info(msg, log_args)
