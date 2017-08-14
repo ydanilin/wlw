@@ -24,7 +24,8 @@ class WlwSpiderMiddleware(object):
             # means one firm already processed:
             self.logPacket(response, spider)
         elif rule in [0, 2]:
-            pageSeen = spider.dbms.getPageSeen(response.meta['nameInUrl'])
+            pageSeen = spider.dbms.getPageSeen(
+                response.meta['job_dat']['nameInUrl'])
             if response.meta['job_dat']['page'] in pageSeen:
                 response.meta['switchedOffRule'] = 1
         return None
@@ -32,7 +33,10 @@ class WlwSpiderMiddleware(object):
     def process_spider_output(self, response, result, spider):
         for i in result:
             if isinstance(i, Request):
-                i.meta['job_dat'] = response.meta['job_dat'].copy()
+                # i.meta['job_dat'] = response.meta['job_dat'].copy()
+                # ahuj1 = response.meta.get('job_dat')
+                # ahuj2 = i.meta.get('job_dat')
+                i.meta['job_dat'].update(response.meta['job_dat'])
 
                 spawnedByRule = response.meta.get('rule')
                 willRequestByRule = i.meta.get('rule')

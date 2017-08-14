@@ -40,7 +40,7 @@ class WlwBaseSpider(CrawlSpider):
     def addNameInUrl(request):
         part = request.url.rsplit('?', 1)[0]
         nameInUrl = part.rsplit('/', 1)[1]
-        request.meta['job_dat']['nameInUrl'] = nameInUrl
+        request.meta['job_dat'] = dict(nameInUrl=nameInUrl)
         return request
 
     def addFirmaId(request):
@@ -53,6 +53,11 @@ class WlwBaseSpider(CrawlSpider):
             output = 0
             logger.error('cannot parse firmaId for url %s' % request.url)
         request.meta['firmaId'] = output
+        request.meta['job_dat'] = {}
+        return request
+
+    def jobDat(request):
+        request.meta['job_dat'] = {}
         return request
 
     rules = (
@@ -66,7 +71,9 @@ class WlwBaseSpider(CrawlSpider):
         # 2. from a firm list page to the next one
         Rule(LinkExtractor(restrict_xpaths=('//ul[@class="pagination"]/'
                                             'li[not(@class)]/'
-                                            'a[text()[contains(.,"chste")]]')))
+                                            'a[text()[contains(.,"chste")]]')
+                           ),
+             process_request=jobDat)
     )
 
     def start_requests(self):
@@ -127,8 +134,17 @@ class WlwBaseSpider(CrawlSpider):
                          if lnk not in seen]
                 if links and rule.process_links:
                     links = rule.process_links(links)
+
                 linksGot = len(links)
                 response.meta['job_dat']['linksGot'] = linksGot
+
+                respRule = response.meta.get('rule', -1)
+                if (n == 2) and (respRule in [0, 2]):
+                    puk = 1  # links = []
+                    # last page = response.page
+                    # record last_page
+                    # if len(pages_seen) === last_page then close category
+
                 for link in links:
                     seen.add(link)
                     r = self._build_request(n, link)
