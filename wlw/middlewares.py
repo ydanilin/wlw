@@ -19,13 +19,14 @@ class WlwSpiderMiddleware(object):
         return s
 
     def process_spider_input(self, response, spider):
-        # if response.meta.get('rule', 77) == 2:
-        #     logger.info('******************   Next page loaded')
-        rule = response.meta.get('rule')
-        dat = response.meta['job_dat']
-        if response.meta.get('rule', 77) == 1:
+        rule = response.meta.get('rule', 77)
+        if rule == 1:
             # means one firm already processed:
             self.logPacket(response, spider)
+        elif rule in [0, 2]:
+            pageSeen = spider.dbms.getPageSeen(response.meta['nameInUrl'])
+            if response.meta['job_dat']['page'] in pageSeen:
+                response.meta['switchedOffRule'] = 1
         return None
 
     def process_spider_output(self, response, result, spider):
@@ -39,49 +40,26 @@ class WlwSpiderMiddleware(object):
                 self.assignPage(spawnedByRule, willRequestByRule, response, i)
 
                 if (not spawnedByRule) and (willRequestByRule == 0):
-                    part = i.url.rsplit('?', 1)[0]
-                    nameInUrl = part.rsplit('/', 1)[1]
-                    catRecord = spider.dbms.getCategory(nameInUrl)
-                    if catRecord:
-                        # set discard flag here
-                        category = catRecord['caption']
-                        total = catRecord['total']
-                        scraped = catRecord['scraped']
-                        pages = spider.dbms.getPageSeen(nameInUrl)
-                    else:  # open new category in db
-                        txt = i.meta.get('link_text', '')
-                        catDetails = re.split(r'(\d+) Anbieter', txt)
-                        if len(catDetails) == 3:
-                            category, total, dummy = catDetails
-                            scraped = 0
-                            pages = []
-                            spider.dbms.addCategory(nameInUrl, category,
-                                                    int(total))
-                        else:
-                            category = None
-                            total = None
-                            i.meta['job_dat']['discard'] = True
-                            msg = ('cannot parse name & amounts for'
-                                   ' category: {0}. Category discarded')
-                            logger.error(msg.format(txt))
+                    nameInUrl = i.meta['job_dat']['nameInUrl']
+                    category, scraped, total = self.openCategory(nameInUrl, i,
+                                                                 spider)
                     if scraped >= total:
                         i.meta['job_dat']['discard'] = True
                     else:
                         dic = dict(scraped=scraped, total=total, pages={},
                                    caption=category)
                         self.stats.set_value(nameInUrl, dic)
-                    i.meta['job_dat']['nameInUrl'] = nameInUrl
                     i.meta['job_dat']['category'] = category
                     i.meta['job_dat']['total'] = int(total)
 
                 if (spawnedByRule in [0, 2]) and (willRequestByRule == 1):
-                    pageSeen = spider.dbms.getPageSeen(
-                        i.meta['job_dat']['nameInUrl'])
-                    if i.meta['job_dat']['page'] in pageSeen:
-                        i.meta['job_dat']['discard'] = True
+                    # pageSeen = spider.dbms.getPageSeen(nameInUrl)
+                    # if i.meta['job_dat']['page'] in pageSeen:
+                    #     i.meta['job_dat']['discard'] = True
                     fid = int(i.meta['firmaId'])
                     if fid in spider.ids_seen:
                         i.meta['job_dat']['discard'] = True
+                        # requests passed the filter logged in spider_input
                         self.logPacket(i, spider, supress_scraped=True)
                         logger.warning(
                             "Duplicate request found for: %s" % i.meta['firmaId'])
@@ -154,3 +132,26 @@ class WlwSpiderMiddleware(object):
                 log_args = {'c': query + '/' + classif,
                             'a': packet.meta['job_dat']['total']}
                 logger.info(msg, log_args)
+
+    def openCategory(self, nameInUrl, request, spider):
+        scraped = 0
+        total = 0
+        catRecord = spider.dbms.getCategory(nameInUrl)
+        if catRecord:
+            category = catRecord['caption']
+            scraped = catRecord['scraped']
+            total = catRecord['total']
+        else:  # create new category in db
+            txt = request.meta.get('link_text', '')
+            catDetails = re.split(r'(\d+) Anbieter', txt)
+            if len(catDetails) == 3:
+                category, total, dummy = catDetails
+                total = int(total)
+                spider.dbms.addCategory(nameInUrl, category, total)
+            else:
+                category = txt
+                # i.meta['job_dat']['discard'] = True
+                msg = ('cannot parse name & amounts for category: {0}.'
+                       ' Not recorded.')
+                logger.error(msg.format(txt))
+        return category, scraped, total

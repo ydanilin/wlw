@@ -37,6 +37,12 @@ class WlwBaseSpider(CrawlSpider):
         else:
             return value
 
+    def addNameInUrl(request):
+        part = request.url.rsplit('?', 1)[0]
+        nameInUrl = part.rsplit('/', 1)[1]
+        request.meta['job_dat']['nameInUrl'] = nameInUrl
+        return request
+
     def addFirmaId(request):
         part = request.url.split('?')[0]
         firm = part.rsplit('/', 1)[1]
@@ -51,8 +57,8 @@ class WlwBaseSpider(CrawlSpider):
 
     rules = (
         # 0. to go from start urls keyword synonym list to specific tifedruck
-        Rule(LinkExtractor(restrict_css='a.list-group-item', process_value=huj)
-             ),
+        Rule(LinkExtractor(restrict_css='a.list-group-item', process_value=huj),
+             process_request=addNameInUrl),
         # 1. from firms list to specific firm
         Rule(LinkExtractor(
             restrict_xpaths='//a[@data-track-type="click_serp_company_name"]'),
@@ -114,14 +120,16 @@ class WlwBaseSpider(CrawlSpider):
         if not isinstance(response, HtmlResponse):
             return
         seen = set()
+        switchOff = response.meta.get('switchedOffRule', -1)
         for n, rule in enumerate(self._rules):
-            links = [lnk for lnk in rule.link_extractor.extract_links(response)
-                     if lnk not in seen]
-            if links and rule.process_links:
-                links = rule.process_links(links)
-            linksGot = len(links)
-            response.meta['job_dat']['linksGot'] = linksGot
-            for link in links:
-                seen.add(link)
-                r = self._build_request(n, link)
-                yield rule.process_request(r)
+            if n != switchOff:
+                links = [lnk for lnk in rule.link_extractor.extract_links(response)
+                         if lnk not in seen]
+                if links and rule.process_links:
+                    links = rule.process_links(links)
+                linksGot = len(links)
+                response.meta['job_dat']['linksGot'] = linksGot
+                for link in links:
+                    seen.add(link)
+                    r = self._build_request(n, link)
+                    yield rule.process_request(r)
