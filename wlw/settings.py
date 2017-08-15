@@ -74,7 +74,7 @@ EXPORT_FIELDS = [
     'delivery',
     'facts',
     'certificates',
-    'angebot'
+    'angebots'
 ]
 
 # Enable or disable downloader middlewares
