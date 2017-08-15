@@ -4,6 +4,7 @@
 #
 # Don't forget to add your pipeline to the ITEM_PIPELINES setting
 # See: http://doc.scrapy.org/en/latest/topics/item-pipeline.html
+import os
 import logging
 import re
 from scrapy import logformatter
@@ -78,9 +79,10 @@ class DuplicatesPipeline(object):
             return item
 
     def open_spider(self, spider):
-        self.dbms = DBMS(spider.name + '.db')
+        full = os.path.dirname(os.path.abspath(__file__))
+        dbPath = os.path.join(full, spider.name + '.db')
+        self.dbms = DBMS(dbPath)
         spider.dbms = self.dbms
-        # self.ids_seen = self.dbms.loadIdsSeen()
         spider.ids_seen = self.dbms.loadIdsSeen()
 
     def close_spider(self, spider):
