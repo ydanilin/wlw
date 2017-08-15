@@ -140,9 +140,10 @@ class WlwBaseSpider(CrawlSpider):
 
                 respRule = response.meta.get('rule', -1)
                 if (n == 2) and (respRule in [0, 2]):
-                    puk = 1  # links = []
-                    # last page = response.page
-                    # record last_page
+                    if not links:
+                        name = response.meta['job_dat']['nameInUrl']
+                        pg = response.meta['job_dat']['page']
+                        self.dbms.updateLastPage(name, pg)
                     # if len(pages_seen) === last_page then close category
 
                 for link in links:

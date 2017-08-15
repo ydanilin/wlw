@@ -45,13 +45,13 @@ class WlwSpiderMiddleware(object):
 
                 if (not spawnedByRule) and (willRequestByRule == 0):
                     nameInUrl = i.meta['job_dat']['nameInUrl']
-                    category, scraped, total = self.openCategory(nameInUrl, i,
+                    category, lastPage, total = self.openCategory(nameInUrl, i,
                                                                  spider)
-                    if scraped >= total:
+                    pageSeen = spider.dbms.getPageSeen(nameInUrl)
+                    if len(pageSeen) == lastPage:
                         i.meta['job_dat']['discard'] = True
                     else:
-                        dic = dict(scraped=scraped, total=total, pages={},
-                                   caption=category)
+                        dic = dict(total=total, pages={}, caption=category)
                         self.stats.set_value(nameInUrl, dic)
                     i.meta['job_dat']['category'] = category
                     i.meta['job_dat']['total'] = int(total)
@@ -70,7 +70,6 @@ class WlwSpiderMiddleware(object):
                         self.stats.inc_value('Duplicated_requests')
 
                 # final decision
-                a = i.meta.get('job_dat', {})
                 discard = i.meta.get('job_dat', {}).get('discard')
                 if not discard:
                     yield i
@@ -114,36 +113,36 @@ class WlwSpiderMiddleware(object):
         record = self.stats.get_value(nameInUrl)
         pg = record['pages'].get(page, 0) + 1
         record['pages'][page] = pg
-        if not supress_scraped:
-            scr = record['scraped'] + 1
-        else:
-            scr = record['scraped']
-        record['scraped'] = scr
+        # if not supress_scraped:
+        #     scr = record['scraped'] + 1
+        # else:
+        #     scr = record['scraped']
+        # record['scraped'] = scr
         self.stats.set_value(nameInUrl, record)
 
         if not supress_scraped:
-            spider.dbms.updateScraped(nameInUrl, scr)
+            # spider.dbms.updateScraped(nameInUrl, scr)
 
             if pg == packet.meta['job_dat']['linksGot']:
                 spider.dbms.addPageSeen(nameInUrl, page)
 
-            if scr == packet.meta['job_dat']['total']:
-                # signal when all firms for sysnonym are fetched
-                msg = ('For category %(c)s'
-                       ' all firms fetched (%(a)d).')
-                query = packet.meta['job_dat']['initial_term']
-                classif = packet.meta['job_dat']['category']
-                log_args = {'c': query + '/' + classif,
-                            'a': packet.meta['job_dat']['total']}
-                logger.info(msg, log_args)
+            # if scr == packet.meta['job_dat']['total']:
+            #     # signal when all firms for sysnonym are fetched
+            #     msg = ('For category %(c)s'
+            #            ' all firms fetched (%(a)d).')
+            #     query = packet.meta['job_dat']['initial_term']
+            #     classif = packet.meta['job_dat']['category']
+            #     log_args = {'c': query + '/' + classif,
+            #                 'a': packet.meta['job_dat']['total']}
+            #     logger.info(msg, log_args)
 
     def openCategory(self, nameInUrl, request, spider):
-        scraped = 0
+        lastPage = -1
         total = 0
         catRecord = spider.dbms.getCategory(nameInUrl)
         if catRecord:
             category = catRecord['caption']
-            scraped = catRecord['scraped']
+            lastPage = catRecord['last_page']
             total = catRecord['total']
         else:  # create new category in db
             txt = request.meta.get('link_text', '')
@@ -158,4 +157,4 @@ class WlwSpiderMiddleware(object):
                 msg = ('cannot parse name & amounts for category: {0}.'
                        ' Not recorded.')
                 logger.error(msg.format(txt))
-        return category, scraped, total
+        return category, lastPage, total

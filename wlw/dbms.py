@@ -15,12 +15,12 @@ class DBMS:
                                  WHERE name_in_url = ?"""
         self.sqlAddCategory = """INSERT INTO job_state (name_in_url,
                                                         caption,
-                                                        scraped,
+                                                        last_page,
                                                         total,
                                                         page_seen)
                                         VALUES (:n,
                                                 :c,
-                                                :s,
+                                                :lp,
                                                 :t,
                                                 :p)"""
         self.sqlGetPageSeen = """SELECT page_seen FROM job_state
@@ -35,15 +35,15 @@ class DBMS:
                                    :page,
                                    :tOnPage,
                                    :qry)"""
-        self.sqlUpdateScraped = """UPDATE job_state SET scraped = :scr
-                                   WHERE name_in_url = :name"""
+        self.sqlUpdateLastPage = """UPDATE job_state SET last_page = :pg
+                                    WHERE name_in_url = :name"""
 
     def getCategory(self, nameInUrl):
         output = self.cur.execute(self.sqlGetCategory, (nameInUrl,)).fetchone()
         return output
 
     def addCategory(self, nameInUrl, category, total):
-        datta = dict(n=nameInUrl, c=category, s=0, t=total, p='')
+        datta = dict(n=nameInUrl, c=category, lp=-1, t=total, p='')
         self.conn.execute(self.sqlAddCategory, datta)
         self.conn.commit()
 
@@ -78,9 +78,12 @@ class DBMS:
         self.bulkCommit()
         # self.conn.commit()
 
-    def updateScraped(self, nameInUrl, scr):
-        self.conn.execute(self.sqlUpdateScraped, dict(name=nameInUrl, scr=scr))
-        self.bulkCommit()
+    def updateLastPage(self, nameInUrl, page):
+        self.conn.execute(self.sqlUpdateLastPage, dict(name=nameInUrl,
+                                                       pg=int(page)
+                                                       )
+                          )
+        self.conn.commit()
 
     def bulkCommit(self):
         self.dumpCount += 1
