@@ -65,8 +65,12 @@ class WlwSpiderMiddleware(object):
                         i.meta['job_dat']['discard'] = True
                         # requests passed the filter logged in spider_input
                         self.logPacket(i, spider, supress_scraped=True)
-                        logger.warning(
-                            "Duplicate request found for: %s" % i.meta['firmaId'])
+                        idd = i.meta['firmaId']
+                        n = i.meta['job_dat']['nameInUrl']
+                        p = i.meta['job_dat']['page']
+                        l = i.meta['job_dat']['linksGot']
+                        msg = 'Duplicate req for {0}, page {1} w/links {2}, cat: {3}'
+                        logger.warning(msg.format(idd, p, l, n))
                         self.stats.inc_value('Duplicated_requests')
 
                 # final decision
