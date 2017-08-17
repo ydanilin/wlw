@@ -23,15 +23,15 @@ class WlwBaseSpider(CrawlSpider):
 
     def huj(value):
         # exclude
-        t1 = value.find('/bogenoffsetdruck?')
-        t2 = value.find('/druck-von-buechern?')
-        t3 = value.find('/grossformatdruck?')
-        t4 = value.find('/kataloge?')
-        t5 = value.find('/offsetdruck?')
+        # t1 = value.find('/bogenoffsetdruck?')
+        # t2 = value.find('/druck-von-buechern?')
+        # t3 = value.find('/grossformatdruck?')
+        # t4 = value.find('/kataloge?')
+        # t5 = value.find('/offsetdruck?')
         t6 = value.find('/siebdruck?')
         t7 = value.find('/textildruck?')
 
-        if t1 >= 0 or t2 >= 0 or t3 >= 0 or t4 >= 0 or t5 >= 0 or t6 >= 0 or t7 >= 0:
+        if t6 >= 0 or t7 >= 0:
             logger.info('Link dropped: {0}'.format(value))
             return None
         else:
