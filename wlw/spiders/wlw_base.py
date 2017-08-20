@@ -18,8 +18,11 @@ class WlwBaseSpider(CrawlSpider):
 
     name = 'wlw_base'
     allowed_domains = ['wlw.de']
-    start_urls = ['Druckereien']#,
-                  # 'Werbetechnik']
+    start_urls = [#'Druckereien']#,
+                  # 'Werbetechnik',
+                  # 'Werbeartikel',
+                  'Werbeagenturen'
+                 ]
 
     def huj(value):
         # exclude
@@ -28,14 +31,14 @@ class WlwBaseSpider(CrawlSpider):
         # t3 = value.find('/grossformatdruck?')
         # t4 = value.find('/kataloge?')
         # t5 = value.find('/offsetdruck?')
-        t6 = value.find('/siebdruck?')
-        t7 = value.find('/textildruck?')
-
-        if t6 >= 0 or t7 >= 0:
-            logger.info('Link dropped: {0}'.format(value))
-            return None
-        else:
-            return value
+        # t6 = value.find('/siebdruck?')
+        # t7 = value.find('/textildruck?')
+        #
+        # if t7 >= 0:
+        #     logger.info('Link dropped: {0}'.format(value))
+        #     return None
+        # else:
+        return value
 
     def addNameInUrl(request):
         part = request.url.rsplit('?', 1)[0]

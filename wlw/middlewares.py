@@ -20,10 +20,18 @@ class WlwSpiderMiddleware(object):
 
     def process_spider_input(self, response, spider):
         rule = response.meta.get('rule', 77)
+        # patch block begins
+        if rule == 77:
+            part = response.url.rsplit('?', 1)[0]
+            nameInUrl = part.rsplit('/', 1)[1]
+            response.meta['job_dat']['nameInUrl'] = nameInUrl
+            response.meta['job_dat']['page'] = 1
+        # patch block ends
         if rule == 1:
             # means one firm already processed:
             self.logPacket(response, spider)
-        elif rule in [0, 2]:
+        # elif rule in [0, 2]:
+        elif rule in [77, 0, 2]:  # patch block. assume cat already in db
             pageSeen = spider.dbms.getPageSeen(
                 response.meta['job_dat']['nameInUrl'])
             if response.meta['job_dat']['page'] in pageSeen:
@@ -43,7 +51,8 @@ class WlwSpiderMiddleware(object):
 
                 self.assignPage(spawnedByRule, willRequestByRule, response, i)
 
-                if (not spawnedByRule) and (willRequestByRule == 0):
+                # if (not spawnedByRule) and (willRequestByRule == 0):
+                if not spawnedByRule:
                     nameInUrl = i.meta['job_dat']['nameInUrl']
                     category, lastPage, total = self.openCategory(nameInUrl, i,
                                                                  spider)
@@ -56,7 +65,8 @@ class WlwSpiderMiddleware(object):
                     i.meta['job_dat']['category'] = category
                     i.meta['job_dat']['total'] = int(total)
 
-                if (spawnedByRule in [0, 2]) and (willRequestByRule == 1):
+                # if (spawnedByRule in [0, 2]) and (willRequestByRule == 1):
+                if (spawnedByRule in [None, 2]) and (willRequestByRule == 1):
                     # pageSeen = spider.dbms.getPageSeen(nameInUrl)
                     # if i.meta['job_dat']['page'] in pageSeen:
                     #     i.meta['job_dat']['discard'] = True
@@ -101,9 +111,10 @@ class WlwSpiderMiddleware(object):
         spider.logger.info('Spider opened: %s' % spider.name)
 
     def assignPage(self, spawnedByRule, willRequestByRule, resp, req):
-        if (not spawnedByRule) and (willRequestByRule == 0):
-            req.meta['job_dat']['page'] = 1
-        if spawnedByRule in [0, 2]:
+        # if (not spawnedByRule) and (willRequestByRule == 0):
+        #     req.meta['job_dat']['page'] = 1
+        # if spawnedByRule in [0, 2]:
+        if spawnedByRule in [None, 2]:
             if willRequestByRule == 1:
                 pg = resp.meta['job_dat']['page']
                 req.meta['job_dat']['page'] = pg
